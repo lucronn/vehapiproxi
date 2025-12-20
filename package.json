@@ -1,0 +1,35 @@
+{
+    "name": "motorapi-auth-proxy",
+    "version": "1.0.0",
+    "description": "Authentication proxy for Motor API with automated login flow",
+    "main": "src/function.js",
+    "engines": {
+        "node": "22"
+    },
+    "type": "module",
+    "scripts": {
+        "start": "node src/index.js",
+        "dev": "node --watch src/index.js",
+        "debug": "NODE_ENV=development node src/index.js"
+    },
+    "keywords": [
+        "proxy",
+        "motor-api",
+        "authentication",
+        "puppeteer"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@sparticuz/chromium": "^143.0.0",
+        "cookie": "^0.6.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "firebase-admin": "^13.6.0",
+        "firebase-functions": "^7.0.2",
+        "http-proxy-middleware": "^2.0.6",
+        "puppeteer-core": "^24.34.0",
+        "winston": "^3.11.0"
+    }
+}
