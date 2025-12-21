@@ -12,7 +12,7 @@ export const config = {
     proxyPort: parseInt(process.env.PROXY_PORT || '3001', 10),
 
     // Session management
-    maxSessionAge: 60 * 60 * 1000, // 1 hour in milliseconds
+    maxSessionAge: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
 
     // Browser settings
     headless: process.env.NODE_ENV !== 'development',

@@ -45,12 +45,18 @@ app.use('/api', createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
+        // Cache static data for 24 hours
+        if (req.path.includes('/years') || req.path.includes('/makes')) {
+            proxyRes.headers['cache-control'] = 'public, max-age=86400';
+        }
+
+        if (proxyRes.statusCode === 401 || proxyRes.statusCode === 403) {
+            logger.warn(`Received ${proxyRes.statusCode} from upstream. Session might be expired.`);
+            authManager.lastAuthTime = 0; // Invalidate session
+        }
+
         logger.info(`← ${proxyRes.statusCode} ${req.path}`);
     },
-    onError: (err, req, res) => {
-        logger.error('Proxy error:', err);
-        res.status(500).json({ error: 'Proxy request failed' });
-    }
 }));
 
 // Start server and authenticate

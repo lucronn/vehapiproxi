@@ -62,7 +62,17 @@ app.use('/api', authMiddleware, createProxyMiddleware({
         logger.info(`→ ${req.method} ${req.path}`);
     },
     onProxyRes: (proxyRes, req, res) => {
-        // logger.info(`← ${proxyRes.statusCode} ${req.path}`);
+        // Cache static data for 24 hours
+        if (req.path.includes('/years') || req.path.includes('/makes')) {
+            proxyRes.headers['cache-control'] = 'public, max-age=86400';
+        }
+
+        if (proxyRes.statusCode === 401 || proxyRes.statusCode === 403) {
+            logger.warn(`Received ${proxyRes.statusCode} from upstream. Session might be expired.`);
+            // In a more advanced implementation, we would trigger re-auth here
+            // For now, we rely on the client to retry or the next request to trigger auth
+            authManager.lastAuthTime = 0; // Invalidate session so next request re-auths
+        }
     },
     onError: (err, req, res) => {
         logger.error('Proxy error:', err);
