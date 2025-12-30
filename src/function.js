@@ -38,6 +38,11 @@ app.get('/health', (req, res) => {
 
 // Async Authentication Middleware
 const authMiddleware = async (req, res, next) => {
+    // Skip auth for preflight requests
+    if (req.method === 'OPTIONS') {
+        return next();
+    }
+
     try {
         // Ensure authentication before proxying
         if (!authManager.isSessionValid()) {
