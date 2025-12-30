@@ -51,7 +51,7 @@ const authMiddleware = async (req, res, next) => {
         const cookieHeader = await authManager.getCookieHeader();
         req.headers['cookie'] = cookieHeader; // Attach to request headers
         req.headers['user-agent'] = config.userAgent; // Match the browser session UA
-        req.headers['referer'] = 'https://sites.motor.com/m1/connector/'; // Spoof referer
+        req.headers['referer'] = 'https://sites.motor.com/m1/'; // Spoof referer
         req.headers['x-requested-with'] = 'XMLHttpRequest'; // Mark as AJAX
         next();
     } catch (error) {
@@ -97,9 +97,9 @@ app.use((req, res, next) => {
     next();
 });
 
-// Legacy /v1 route - proxies to Motor.com connector with path rewriting
+// Legacy /v1 route - proxies to Motor.com /m1 endpoint with path rewriting
 app.use('/v1', authMiddleware, createProxyMiddleware({
-    target: config.motorApiBase, // https://sites.motor.com/m1/connector
+    target: config.motorApiBase, // https://sites.motor.com/m1
     changeOrigin: true,
     onProxyReq: async (proxyReq, req, res) => {
         try {
@@ -109,7 +109,7 @@ app.use('/v1', authMiddleware, createProxyMiddleware({
             
             // Set required headers for connector
             proxyReq.setHeader('Origin', 'https://sites.motor.com');
-            proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
+            proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/');
             proxyReq.setHeader('User-Agent', config.userAgent);
             proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
             
@@ -161,10 +161,10 @@ app.use('/v1', authMiddleware, createProxyMiddleware({
     }
 }));
 
-// Direct /api route for Motor.com connector API
-// All /api/* requests are authenticated and proxied to sites.motor.com/m1/connector/api/*
+// Direct /api route for Motor.com API
+// All /api/* requests are authenticated and proxied to sites.motor.com/m1/api/*
 app.use('/api', authMiddleware, createProxyMiddleware({
-    target: config.motorApiBase, // https://sites.motor.com/m1/connector
+    target: config.motorApiBase, // https://sites.motor.com/m1
     changeOrigin: true,
     // No path rewrite needed - /api -> /api on connector
     onProxyReq: async (proxyReq, req, res) => {
@@ -175,7 +175,7 @@ app.use('/api', authMiddleware, createProxyMiddleware({
             
             // Set required headers for connector
             proxyReq.setHeader('Origin', 'https://sites.motor.com');
-            proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
+            proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/');
             proxyReq.setHeader('User-Agent', config.userAgent);
             proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
             
@@ -195,7 +195,7 @@ app.use('/api', authMiddleware, createProxyMiddleware({
         }
 
         if (proxyRes.statusCode === 401 || proxyRes.statusCode === 403) {
-            logger.warn(`Received ${proxyRes.statusCode} from connector. Session might be expired.`);
+            logger.warn(`Received ${proxyRes.statusCode} from Motor.com. Session might be expired.`);
             authManager.lastAuthTime = 0; // Invalidate session so next request re-auths
         }
 
