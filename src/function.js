@@ -101,18 +101,25 @@ app.use((req, res, next) => {
 app.use('/v1', authMiddleware, createProxyMiddleware({
     target: config.motorApiBase, // https://sites.motor.com/m1/connector
     changeOrigin: true,
-    onProxyReq: (proxyReq, req, res) => {
-        // Ensure cookies from authMiddleware are properly set
-        const cookieHeader = req.headers['cookie'];
-        if (cookieHeader) {
+    onProxyReq: async (proxyReq, req, res) => {
+        try {
+            // Get cookies directly from authManager (already authenticated by middleware)
+            const cookieHeader = await authManager.getCookieHeader();
             proxyReq.setHeader('Cookie', cookieHeader);
+            
+            // Set required headers for connector
+            proxyReq.setHeader('Origin', 'https://sites.motor.com');
+            proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
+            proxyReq.setHeader('User-Agent', config.userAgent);
+            proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
+            
+            logger.info(`→ ${req.method} ${req.path} → ${config.motorApiBase}${req.path.replace('/v1', '')}`);
+        } catch (error) {
+            logger.error('Failed to get cookies for /v1 request:', error);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Authentication failed' });
+            }
         }
-        
-        // Ensure origin and referer are set correctly
-        proxyReq.setHeader('Origin', 'https://sites.motor.com');
-        proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
-        proxyReq.setHeader('User-Agent', config.userAgent);
-        proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
     },
     pathRewrite: function (path, req) {
         // Explicit rewrites for Chek-Chart legacy paths to /api
@@ -160,22 +167,25 @@ app.use('/api', authMiddleware, createProxyMiddleware({
     target: config.motorApiBase, // https://sites.motor.com/m1/connector
     changeOrigin: true,
     // No path rewrite needed - /api -> /api on connector
-    onProxyReq: (proxyReq, req, res) => {
-        // Ensure cookies from authMiddleware are properly set
-        const cookieHeader = req.headers['cookie'];
-        if (cookieHeader) {
+    onProxyReq: async (proxyReq, req, res) => {
+        try {
+            // Get cookies directly from authManager (already authenticated by middleware)
+            const cookieHeader = await authManager.getCookieHeader();
             proxyReq.setHeader('Cookie', cookieHeader);
-        }
-        
-        // Ensure origin and referer are set correctly
-        proxyReq.setHeader('Origin', 'https://sites.motor.com');
-        proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
-        proxyReq.setHeader('User-Agent', config.userAgent);
-        proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
-        
-        logger.info(`→ ${req.method} ${req.path} → ${config.motorApiBase}${req.path}`);
-        if (cookieHeader) {
-            logger.debug(`Cookie header length: ${cookieHeader.length} chars`);
+            
+            // Set required headers for connector
+            proxyReq.setHeader('Origin', 'https://sites.motor.com');
+            proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
+            proxyReq.setHeader('User-Agent', config.userAgent);
+            proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
+            
+            logger.info(`→ ${req.method} ${req.path} → ${config.motorApiBase}${req.path}`);
+            logger.info(`Cookie header: ${cookieHeader ? `${cookieHeader.length} chars` : 'none'}`);
+        } catch (error) {
+            logger.error('Failed to get cookies for /api request:', error);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Authentication failed' });
+            }
         }
     },
     onProxyRes: (proxyRes, req, res) => {

@@ -195,17 +195,8 @@ class AuthManager {
                     }
                 }
 
-                // Step 5: Navigate to connector endpoint to ensure we have the right session
-                logger.info('Step 5: Navigating to connector endpoint to validate session...');
-                try {
-                    await page.goto('https://sites.motor.com/m1/connector/', { waitUntil: 'networkidle2', timeout: 30000 });
-                    logger.info(`✓ Reached connector endpoint: ${page.url()}`);
-                } catch (err) {
-                    logger.warn(`Navigation to connector endpoint had issues (may be normal): ${err.message}`);
-                }
-
-                // Step 6: Extract cookies from Motor.com (including connector-specific cookies)
-                logger.info('Step 6: Extracting session cookies...');
+                // Step 5: Extract cookies from Motor.com
+                logger.info('Step 5: Extracting session cookies...');
 
                 const allCookies = await page.cookies();
                 this.cookies = allCookies.filter(cookie =>
