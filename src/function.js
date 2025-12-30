@@ -101,6 +101,19 @@ app.use((req, res, next) => {
 app.use('/v1', authMiddleware, createProxyMiddleware({
     target: config.motorApiBase, // https://sites.motor.com/m1/connector
     changeOrigin: true,
+    onProxyReq: (proxyReq, req, res) => {
+        // Ensure cookies from authMiddleware are properly set
+        const cookieHeader = req.headers['cookie'];
+        if (cookieHeader) {
+            proxyReq.setHeader('Cookie', cookieHeader);
+        }
+        
+        // Ensure origin and referer are set correctly
+        proxyReq.setHeader('Origin', 'https://sites.motor.com');
+        proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
+        proxyReq.setHeader('User-Agent', config.userAgent);
+        proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
+    },
     pathRewrite: function (path, req) {
         // Explicit rewrites for Chek-Chart legacy paths to /api
         if (path.includes('/Information/Chek-Chart/Years') && path.includes('/Makes') && path.includes('/Models')) {
@@ -148,8 +161,22 @@ app.use('/api', authMiddleware, createProxyMiddleware({
     changeOrigin: true,
     // No path rewrite needed - /api -> /api on connector
     onProxyReq: (proxyReq, req, res) => {
+        // Ensure cookies from authMiddleware are properly set
+        const cookieHeader = req.headers['cookie'];
+        if (cookieHeader) {
+            proxyReq.setHeader('Cookie', cookieHeader);
+        }
+        
+        // Ensure origin and referer are set correctly
+        proxyReq.setHeader('Origin', 'https://sites.motor.com');
+        proxyReq.setHeader('Referer', 'https://sites.motor.com/m1/connector/');
+        proxyReq.setHeader('User-Agent', config.userAgent);
+        proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
+        
         logger.info(`→ ${req.method} ${req.path} → ${config.motorApiBase}${req.path}`);
-        // Authentication headers (cookies, referer, user-agent) are already set by authMiddleware
+        if (cookieHeader) {
+            logger.debug(`Cookie header length: ${cookieHeader.length} chars`);
+        }
     },
     onProxyRes: (proxyRes, req, res) => {
         // Cache static data for 24 hours
