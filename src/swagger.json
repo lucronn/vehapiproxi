@@ -1,0 +1,1835 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vehicle Service API",
+    "description": "API for accessing vehicle information, articles, maintenance schedules, parts, and related content",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://us-central1-vehapi-torque.cloudfunctions.net/motorApiAuthProxy",
+      "description": "Production server (Motor Proxy)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Assets",
+      "description": "Operations for retrieving articles, graphics, and asset content"
+    },
+    {
+      "name": "Vehicles",
+      "description": "Operations for vehicle information and selection"
+    },
+    {
+      "name": "Search",
+      "description": "Operations for searching articles and content"
+    },
+    {
+      "name": "Parts",
+      "description": "Operations for retrieving parts information"
+    },
+    {
+      "name": "Bookmarks",
+      "description": "Operations for managing bookmarks"
+    },
+    {
+      "name": "Maintenance Schedules",
+      "description": "Operations for maintenance schedule information"
+    },
+    {
+      "name": "UI",
+      "description": "Operations for UI configuration and settings"
+    },
+    {
+      "name": "Track Change",
+      "description": "Operations for tracking changes and delta reports"
+    },
+    {
+      "name": "Error Logging",
+      "description": "Operations for error logging"
+    },
+    {
+      "name": "Authentication",
+      "description": "Operations for authentication"
+    }
+  ],
+  "paths": {
+    "/api/source/{contentSource}/vehicle/{vehicleId}/article/{articleId}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get article by ID",
+        "description": "Content and relevant metadata for a specific article in the context of a vehicle",
+        "operationId": "getArticleById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "articleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The article ID"
+          },
+          {
+            "name": "motorVehicleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Motor vehicle ID"
+          },
+          {
+            "name": "prettyPrint",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Pretty print the response"
+          },
+          {
+            "name": "bucketName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bucket name"
+          },
+          {
+            "name": "articleSubtype",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Article subtype"
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search term"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/labor/{articleId}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get labor details",
+        "description": "Content and relevant metadata for a specific labor operation in the context of a vehicle from MCDB",
+        "operationId": "getLaborDetails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "articleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The article ID"
+          },
+          {
+            "name": "motorVehicleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "prettyPrint",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaborResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/xml/{articleId}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get XML by ID",
+        "description": "The raw XML content of an article. Included for debugging purposes.",
+        "operationId": "getXmlById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "name": "articleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/article/{articleId}/title": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get article title",
+        "description": "The title of the referenced article. For GM publication objects the article ID must include the publication_object_syskey to uniquely identify the title.",
+        "operationId": "getArticleTitle",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "articleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/graphic/{id}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get graphic/image",
+        "description": "Returns the image for the provided ID. Returns a 404 with a static svg declaring that the image is not available if the image cannot be found.",
+        "operationId": "getGraphic",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Graphic/image ID"
+          },
+          {
+            "name": "w",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Width"
+          },
+          {
+            "name": "h",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Height"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/manufacturer/{manufacturerId}/graphic/{id}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get graphic (backwards compatible)",
+        "description": "Prior route for retrieving images. Do not remove, this route is referenced in saved bookmarks.",
+        "operationId": "getGraphicBackwardsCompatible",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "manufacturerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "w",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "h",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/asset/{handleId}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get asset by handle ID",
+        "description": "Returns an asset for the provided ID",
+        "operationId": "getAssetByHandleId",
+        "parameters": [
+          {
+            "name": "handleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/maintenanceSchedules/frequency": {
+      "get": {
+        "tags": [
+          "Maintenance Schedules"
+        ],
+        "summary": "Get maintenance schedules by frequency",
+        "description": "Maintenance schedules for given VehicleId and Frequency",
+        "operationId": "getMaintenanceSchedulesByFrequency",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "frequencyTypeCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Frequency type code"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/MaintenanceScheduleSeverity"
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSchedulesByFrequencyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/maintenanceSchedules/intervals": {
+      "get": {
+        "tags": [
+          "Maintenance Schedules"
+        ],
+        "summary": "Get maintenance schedules by interval",
+        "description": "Maintenance schedules for given VehicleId, IntervalType and Interval",
+        "operationId": "getMaintenanceSchedulesByInterval",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "intervalType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/IntervalType"
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Interval value"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/MaintenanceScheduleSeverity"
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSchedulesByIntervalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/maintenanceSchedules/indicators": {
+      "get": {
+        "tags": [
+          "Maintenance Schedules"
+        ],
+        "summary": "Get indicators with maintenance schedules",
+        "description": "Gets a summary of indicators at which maintenance schedules occur for given VehicleId",
+        "operationId": "getIndicatorsWithMaintenanceSchedules",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/MaintenanceScheduleSeverity"
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndicatorsWithMaintenanceSchedulesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/years": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get years",
+        "description": "Get available years",
+        "operationId": "getYears",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Int32ListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/year/{year}/makes": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get makes",
+        "description": "Get makes for a given year",
+        "operationId": "getMakes",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Year"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MakeListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/year/{year}/make/{make}/models": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get models",
+        "description": "All vehicles matching the provided year and make",
+        "operationId": "getModels",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "make",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vin/{vin}/vehicle": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get vehicle by VIN",
+        "description": "Vehicle matching the provided VIN",
+        "operationId": "getVehicleByVin",
+        "parameters": [
+          {
+            "name": "vin",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Vehicle Identification Number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VinVehicleResponseResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/motor/year/{year}/make/{make}/models": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get motor models",
+        "description": "All motor vehicles matching the provided year and make",
+        "operationId": "getMotorModels",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "make",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelAndVehicleIdListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicles": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get vehicles (deprecated)",
+        "description": "Model information for a list of vehicle IDs",
+        "operationId": "getVehiclesDeprecated",
+        "deprecated": true,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "name": "vehicleIds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelAndVehicleIdListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get vehicles",
+        "description": "Model information for a list of vehicle IDs",
+        "operationId": "getVehicles",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetVehiclesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelAndVehicleIdListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/{vehicleId}/motorvehicles": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get motor vehicle details",
+        "description": "Motor vehicle details for different OEs vehicle IDs",
+        "operationId": "getMotorVehicleDetails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelAndVehicleIdListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/{vehicleId}/name": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get vehicle name",
+        "description": "Vehicle name by vehicle IDs",
+        "operationId": "getVehicleName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/articles/v2": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Get search results by vehicle ID",
+        "description": "Metadata for articles that match the provided vehicle and search term",
+        "operationId": "getSearchResultsByVehicleId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search term"
+          },
+          {
+            "name": "motorVehicleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResultsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/parts": {
+      "get": {
+        "tags": [
+          "Parts"
+        ],
+        "summary": "Get parts for vehicle",
+        "description": "Get parts for a specific vehicle",
+        "operationId": "getPartsForVehicle",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "motorVehicleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartLineItemListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/source/{contentSource}/vehicle/{vehicleId}/article/{articleId}/bookmark": {
+      "post": {
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "Save bookmark",
+        "description": "Save a bookmark for an article",
+        "operationId": "saveBookmark",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ContentSource"
+          },
+          {
+            "$ref": "#/components/parameters/VehicleId"
+          },
+          {
+            "name": "articleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleBookmarkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/bookmark/{bookmarkId}": {
+      "get": {
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "Get bookmark",
+        "description": "Get a bookmark by ID",
+        "operationId": "getBookmark",
+        "parameters": [
+          {
+            "name": "bookmarkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Bookmark ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/ui/favicon": {
+      "get": {
+        "tags": [
+          "UI"
+        ],
+        "summary": "Get favicon",
+        "description": "Get favicon",
+        "operationId": "getFavicon",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "image/x-icon": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ui/css/bootstrap": {
+      "get": {
+        "tags": [
+          "UI"
+        ],
+        "summary": "Get Bootstrap CSS",
+        "description": "Get Bootstrap CSS",
+        "operationId": "getBootstrapCss",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/css": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ui/banner.html": {
+      "get": {
+        "tags": [
+          "UI"
+        ],
+        "summary": "Get banner HTML",
+        "description": "Get banner HTML",
+        "operationId": "getBannerHtml",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ui/usersettings": {
+      "get": {
+        "tags": [
+          "UI"
+        ],
+        "summary": "Get user settings",
+        "description": "Get user settings",
+        "operationId": "getUserSettings",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiUserSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ui/feedbackconfigurations": {
+      "get": {
+        "tags": [
+          "UI"
+        ],
+        "summary": "Get feedback configurations",
+        "description": "Get feedback configurations",
+        "operationId": "getFeedbackConfigurations",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackConfigurationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ui/savefeedback": {
+      "post": {
+        "tags": [
+          "UI"
+        ],
+        "summary": "Save feedback",
+        "description": "Save feedback",
+        "operationId": "saveFeedback",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Feedback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/source/track-change/processingquarters": {
+      "get": {
+        "tags": [
+          "Track Change"
+        ],
+        "summary": "Get processing quarters",
+        "description": "Get processing quarters",
+        "operationId": "getProcessingQuarters",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source/track-change/deltareport": {
+      "get": {
+        "tags": [
+          "Track Change"
+        ],
+        "summary": "Get vehicle delta report",
+        "description": "Get vehicle delta report",
+        "operationId": "getVehicleDeltaReport",
+        "parameters": [
+          {
+            "name": "quarter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Processing quarter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleDeltaReportListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logError": {
+      "post": {
+        "tags": [
+          "Error Logging"
+        ],
+        "summary": "Log error",
+        "description": "Provides the ability to log client side errors without injecting the external logging url or requiring separate authentication information",
+        "operationId": "logError",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/logout": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Logout",
+        "description": "Logout",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "302": {
+            "description": "Redirect response"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "ContentSource": {
+        "name": "contentSource",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/ContentSource"
+        },
+        "description": "Content source identifier"
+      },
+      "VehicleId": {
+        "name": "vehicleId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Vehicle ID"
+      }
+    },
+    "schemas": {
+      "ContentSource": {
+        "type": "string",
+        "enum": [
+          "MOTOR",
+          "GeneralMotors",
+          "Honda",
+          "Stellantis",
+          "Toyota",
+          "Nissan",
+          "Ford"
+        ],
+        "description": "Content source enumeration"
+      },
+      "IntervalType": {
+        "type": "string",
+        "enum": [
+          "Miles",
+          "Kilometers",
+          "Months"
+        ],
+        "description": "Interval type enumeration"
+      },
+      "MaintenanceScheduleSeverity": {
+        "type": "string",
+        "enum": [
+          "All",
+          "Severe",
+          "Normal"
+        ],
+        "description": "Maintenance schedule severity enumeration"
+      },
+      "FilterTabType": {
+        "type": "string",
+        "enum": [
+          "Basic",
+          "All",
+          "Other"
+        ],
+        "description": "Filter tab type enumeration"
+      },
+      "ArticleResponse": {
+        "type": "object",
+        "description": "Article response containing article content and metadata",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "LaborResponse": {
+        "type": "object",
+        "description": "Labor operation response",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "StringResponse": {
+        "type": "object",
+        "description": "String response wrapper",
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "MaintenanceSchedulesByFrequencyResponse": {
+        "type": "object",
+        "description": "Maintenance schedules grouped by frequency",
+        "properties": {
+          "schedules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "MaintenanceSchedulesByIntervalResponse": {
+        "type": "object",
+        "description": "Maintenance schedules grouped by interval",
+        "properties": {
+          "schedules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "IndicatorsWithMaintenanceSchedulesResponse": {
+        "type": "object",
+        "description": "Indicators with maintenance schedules",
+        "properties": {
+          "indicators": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "Int32ListResponse": {
+        "type": "object",
+        "description": "List of integers response",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "MakeListResponse": {
+        "type": "object",
+        "description": "List of makes response",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ModelsResponseResponse": {
+        "type": "object",
+        "description": "Models response",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "vehicleId": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "VinVehicleResponseResponse": {
+        "type": "object",
+        "description": "VIN vehicle response",
+        "properties": {
+          "vin": {
+            "type": "string"
+          },
+          "vehicleId": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "make": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelAndVehicleIdListResponse": {
+        "type": "object",
+        "description": "Model and vehicle ID list response",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "vehicleId": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "GetVehiclesRequest": {
+        "type": "object",
+        "description": "Request to get vehicles",
+        "properties": {
+          "vehicleIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SearchResultsResponse": {
+        "type": "object",
+        "description": "Search results response",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "articleId": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PartLineItemListResponse": {
+        "type": "object",
+        "description": "Part line item list response",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "partNumber": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ArticleBookmarkResponse": {
+        "type": "object",
+        "description": "Article bookmark response",
+        "properties": {
+          "bookmarkId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "articleId": {
+            "type": "string"
+          },
+          "vehicleId": {
+            "type": "string"
+          }
+        }
+      },
+      "UiUserSettingsResponse": {
+        "type": "object",
+        "description": "UI user settings response",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "FeedbackConfigurationResponse": {
+        "type": "object",
+        "description": "Feedback configuration response",
+        "properties": {
+          "configurations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "Feedback": {
+        "type": "object",
+        "description": "Feedback request",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "StringListResponse": {
+        "type": "object",
+        "description": "String list response",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VehicleDeltaReportListResponse": {
+        "type": "object",
+        "description": "Vehicle delta report list response",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "LogEntry": {
+        "type": "object",
+        "description": "Log entry request",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stackTrace": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "EmptyResponse": {
+        "type": "object",
+        "description": "Empty response"
+      }
+    },
+    "responses": {
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Not Found"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Bad Request"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Internal Server Error"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

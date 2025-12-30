@@ -136,8 +136,12 @@ class AuthManager {
                     }, config.libraryBarcode);
 
                     logger.info('Clicking submit...');
+
+                    // Capture browser logs
+                    page.on('console', msg => logger.info(`[BROWSER] ${msg.text()}`));
+
                     await Promise.all([
-                        page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(e => logger.warn('Nav wait error:', e.message)),
+                        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(e => logger.warn('Nav wait error:', e.message)),
                         page.click('button[type="submit"], input[type="submit"]')
                     ]);
                 } else {
@@ -146,7 +150,8 @@ class AuthManager {
 
                 // Step 3: Wait for EBSCO login (may auto-redirect through OAuth)
                 logger.info('Step 3: Handling EBSCO authentication details...');
-                await new Promise(r => setTimeout(r, 5000)); // Allow redirects/popups to process
+                // Allow redirects/popups to process - increased wait for stability
+                await new Promise(r => setTimeout(r, 5000));
 
                 // Check for new tabs/popups
                 const pages = await browser.pages();
@@ -161,10 +166,12 @@ class AuthManager {
                 try {
                     await page.waitForFunction(
                         () => window.location.hostname.includes('motor.com'),
-                        { timeout: 20000 }
+                        { timeout: 60000 } // Increased timeout 
                     );
                     logger.info('✓ Reached Motor.com');
                 } catch (err) {
+                    logger.warn(`Wait for Motor.com failed. Current URL: ${page.url()}`);
+
                     // May need to click "Access through institution" on EBSCO page
                     const institutionButton = await page.$('button:contains("Access through your institution"), a:contains("institution")');
                     if (institutionButton) {
@@ -172,37 +179,24 @@ class AuthManager {
                         await institutionButton.click();
                         await page.waitForFunction(
                             () => window.location.hostname.includes('motor.com'),
-                            { timeout: 20000 }
+                            { timeout: 30000 }
                         );
+                    } else {
+                        // Check for "continue" button often found on redirection intermediaries
+                        const continueButton = await page.$('button:contains("Continue"), a:contains("Continue")');
+                        if (continueButton) {
+                            logger.info('Clicking "Continue" button...');
+                            await continueButton.click();
+                            await page.waitForFunction(
+                                () => window.location.hostname.includes('motor.com'),
+                                { timeout: 30000 }
+                            );
+                        }
                     }
                 }
 
                 // Step 5: Extract cookies from Motor.com
                 logger.info('Step 5: Extracting session cookies...');
-
-                // Log requests to find the real API
-                page.on('request', req => {
-                    if (req.resourceType() === 'xhr' || req.resourceType() === 'fetch') {
-                        logger.info(`Valid API Request observed: ${req.url()}`);
-                    }
-                });
-
-                // Wait a bit to capture potential initial data loads
-                await new Promise(r => setTimeout(r, 5000));
-
-                // PROBE: Check if /years returns JSON or HTML
-                try {
-                    logger.info('PROBING /years endpoint...');
-                    const probePage = await browser.newPage();
-                    await probePage.goto(`${config.motorApiBase}/years`);
-                    const content = await probePage.content();
-                    const contentType = content.trim().startsWith('<') ? 'HTML' : 'JSON';
-                    logger.info(`PROBE RESULT: /years returned ${contentType}`);
-                    logger.info(`Preview: ${content.substring(0, 200)}`);
-                    await probePage.close();
-                } catch (e) {
-                    logger.error('Probe failed:', e);
-                }
 
                 const allCookies = await page.cookies();
                 this.cookies = allCookies.filter(cookie =>
@@ -215,6 +209,8 @@ class AuthManager {
                 logger.info(`Cookies: ${this.cookies.map(c => c.name).join(', ')}`);
 
                 await this.saveSession();
+
+
 
             } catch (error) {
                 logger.error('Authentication failed:', error);

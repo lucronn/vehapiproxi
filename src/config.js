@@ -8,7 +8,7 @@ export const config = {
     ebscoPassword: process.env.EBSCO_PASSWORD || '',
 
     // API configuration
-    motorApiBase: process.env.MOTOR_API_BASE || 'https://sites.motor.com/m1/api',
+    motorApiBase: process.env.MOTOR_API_BASE || 'https://sites.motor.com/m1/connector',
     proxyPort: parseInt(process.env.PROXY_PORT || '3001', 10),
 
     // Session management

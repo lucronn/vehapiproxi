@@ -2,9 +2,17 @@ import { onRequest } from 'firebase-functions/v2/https';
 import express from 'express';
 import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config, validateConfig } from './config.js';
 import { authManager } from './auth.js';
 import logger from './logger.js';
+import swaggerUi from 'swagger-ui-express';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const swaggerDocument = JSON.parse(fs.readFileSync(path.join(__dirname, 'swagger.json'), 'utf8'));
 
 // Validate configuration
 validateConfig();
@@ -18,6 +26,8 @@ app.use(cors({
 }));
 
 // Health check endpoint
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -41,7 +51,7 @@ const authMiddleware = async (req, res, next) => {
         const cookieHeader = await authManager.getCookieHeader();
         req.headers['cookie'] = cookieHeader; // Attach to request headers
         req.headers['user-agent'] = config.userAgent; // Match the browser session UA
-        req.headers['referer'] = 'https://sites.motor.com/m1/'; // Spoof referer
+        req.headers['referer'] = 'https://sites.motor.com/m1/connector/'; // Spoof referer
         req.headers['x-requested-with'] = 'XMLHttpRequest'; // Mark as AJAX
         next();
     } catch (error) {
@@ -50,17 +60,66 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
-// Proxy middleware
-app.use('/api', authMiddleware, createProxyMiddleware({
-    target: config.motorApiBase,
+// --- MOCK SHIM FOR PHANTOM ENDPOINTS ---
+// The frontend still requests these invalid endpoints. 
+// We return empty lists to unblock the application initialization.
+app.use((req, res, next) => {
+    const path = req.path;
+
+    // Helper for standard success response
+    const success = (body) => res.json({
+        header: { status: "OK", statusCode: 200, date: new Date().toUTCString() },
+        body
+    });
+
+    if (path.endsWith('/dtcs')) {
+        return success({ total: 0, dtcs: [] });
+    }
+    if (path.endsWith('/tsbs')) {
+        return success({ total: 0, tsbs: [] });
+    }
+    if (path.endsWith('/diagrams')) {
+        return success({ total: 0, diagrams: [] });
+    }
+    if (path.endsWith('/procedures')) {
+        return success({ total: 0, procedures: [] });
+    }
+    if (path.endsWith('/specs')) {
+        return success({ total: 0, specs: [] });
+    }
+    if (path.endsWith('/wiring')) {
+        return success({ total: 0, wiringDiagrams: [] });
+    }
+    if (path.endsWith('/components')) {
+        return success({ total: 0, componentLocations: [] });
+    }
+
+    next();
+});
+
+// Legacy /v1 route - proxies to Motor.com connector with path rewriting
+app.use('/v1', authMiddleware, createProxyMiddleware({
+    target: config.motorApiBase, // https://sites.motor.com/m1/connector
     changeOrigin: true,
-    pathRewrite: {
-        '^/api': ''
+    pathRewrite: function (path, req) {
+        // Explicit rewrites for Chek-Chart legacy paths to /api
+        if (path.includes('/Information/Chek-Chart/Years') && path.includes('/Makes') && path.includes('/Models')) {
+            return path.replace('/v1/Information/Chek-Chart/Years', '/api/year').replace('/Makes', '/make').replace('/Models', '/models');
+        }
+        if (path.includes('/Information/Chek-Chart/Years') && path.includes('/Makes')) {
+            return path.replace('/v1/Information/Chek-Chart/Years', '/api/year').replace('/Makes', '/makes');
+        }
+        if (path.includes('/Information/Chek-Chart/Years')) {
+            return path.replace('/v1/Information/Chek-Chart/Years', '/api/years');
+        }
+        // Passthrough for /v1/api... -> /api...
+        if (path.startsWith('/v1/api')) {
+            return path.replace('/v1/api', '/api');
+        }
+        return path;
     },
-    onProxyReq: (proxyReq, req, res) => {
-        // Headers modified in middleware are automatically forwarded
-        logger.info(`→ ${req.method} ${req.path}`);
-    },
+    // authMiddleware is now applied before this proxy middleware
+    // onProxyReq removed as it's not needed for auth injection anymore
     onProxyRes: (proxyRes, req, res) => {
         // Cache static data for 24 hours
         if (req.path.includes('/years') || req.path.includes('/makes')) {
@@ -77,10 +136,42 @@ app.use('/api', authMiddleware, createProxyMiddleware({
     onError: (err, req, res) => {
         logger.error('Proxy error:', err);
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Proxy request failed' });
+            res.status(500).send('Proxy Error');
         }
     }
 }));
+
+// Direct /api route for Motor.com connector API
+// All /api/* requests are authenticated and proxied to sites.motor.com/m1/connector/api/*
+app.use('/api', authMiddleware, createProxyMiddleware({
+    target: config.motorApiBase, // https://sites.motor.com/m1/connector
+    changeOrigin: true,
+    // No path rewrite needed - /api -> /api on connector
+    onProxyReq: (proxyReq, req, res) => {
+        logger.info(`→ ${req.method} ${req.path} → ${config.motorApiBase}${req.path}`);
+        // Authentication headers (cookies, referer, user-agent) are already set by authMiddleware
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        // Cache static data for 24 hours
+        if (req.path.includes('/years') || req.path.includes('/makes')) {
+            proxyRes.headers['cache-control'] = 'public, max-age=86400';
+        }
+
+        if (proxyRes.statusCode === 401 || proxyRes.statusCode === 403) {
+            logger.warn(`Received ${proxyRes.statusCode} from connector. Session might be expired.`);
+            authManager.lastAuthTime = 0; // Invalidate session so next request re-auths
+        }
+
+        logger.info(`← ${proxyRes.statusCode} ${req.path}`);
+    },
+    onError: (err, req, res) => {
+        logger.error('Proxy error for /api route:', err);
+        if (!res.headersSent) {
+            res.status(500).send('Proxy Error');
+        }
+    }
+}));
+
 
 // Export as Firebase Function
 export const motorApiAuthProxy = onRequest({

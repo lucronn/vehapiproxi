@@ -1,9 +1,17 @@
 import express from 'express';
 import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config, validateConfig } from './config.js';
 import { authManager } from './auth.js';
 import logger from './logger.js';
+import swaggerUi from 'swagger-ui-express';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const swaggerDocument = JSON.parse(fs.readFileSync(path.join(__dirname, 'swagger.json'), 'utf8'));
 
 // Validate configuration on startup
 validateConfig();
@@ -17,6 +25,8 @@ app.use(cors({
 }));
 
 // Health check endpoint
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -25,12 +35,43 @@ app.get('/health', (req, res) => {
     });
 });
 
+// --- MOCK SHIM FOR PHANTOM ENDPOINTS ---
+app.use((req, res, next) => {
+    const path = req.path;
+    const success = (body) => res.json({
+        header: { status: "OK", statusCode: 200, date: new Date().toUTCString() },
+        body
+    });
+
+    if (path.endsWith('/dtcs')) return success({ total: 0, dtcs: [] });
+    if (path.endsWith('/tsbs')) return success({ total: 0, tsbs: [] });
+    if (path.endsWith('/diagrams')) return success({ total: 0, diagrams: [] });
+    if (path.endsWith('/procedures')) return success({ total: 0, procedures: [] });
+    if (path.endsWith('/specs')) return success({ total: 0, specs: [] });
+    if (path.endsWith('/wiring')) return success({ total: 0, wiringDiagrams: [] });
+    if (path.endsWith('/components')) return success({ total: 0, componentLocations: [] });
+
+    next();
+});
+
 // Proxy middleware for Motor API
-app.use('/api', createProxyMiddleware({
+app.use('/v1', createProxyMiddleware({
     target: config.motorApiBase,
     changeOrigin: true,
-    pathRewrite: {
-        '^/api': '' // Remove /api prefix when forwarding
+    pathRewrite: function (path, req) {
+        if (path.includes('/Information/Chek-Chart/Years') && path.includes('/Makes') && path.includes('/Models')) {
+            return path.replace('/v1/Information/Chek-Chart/Years', '/api/year').replace('/Makes', '/make').replace('/Models', '/models');
+        }
+        if (path.includes('/Information/Chek-Chart/Years') && path.includes('/Makes')) {
+            return path.replace('/v1/Information/Chek-Chart/Years', '/api/year').replace('/Makes', '/makes');
+        }
+        if (path.includes('/Information/Chek-Chart/Years')) {
+            return path.replace('/v1/Information/Chek-Chart/Years', '/api/years');
+        }
+        if (path.startsWith('/v1/api')) {
+            return path.replace('/v1/api', '/api');
+        }
+        return path;
     },
     onProxyReq: async (proxyReq, req, res) => {
         try {
@@ -38,10 +79,10 @@ app.use('/api', createProxyMiddleware({
             const cookieHeader = await authManager.getCookieHeader();
             proxyReq.setHeader('Cookie', cookieHeader);
 
-            logger.info(`→ ${req.method} ${req.path} → ${config.motorApiBase}${req.path.replace('/api', '')}`);
+            logger.info(`→ ${req.method} ${req.path} → ${config.motorApiBase}${req.path.replace('/v1', '')}`);
         } catch (error) {
             logger.error('Failed to get cookies for request:', error);
-            res.status(500).json({ error: 'Authentication failed' });
+            res.status(500).send('Proxy Error');
         }
     },
     onProxyRes: (proxyRes, req, res) => {
@@ -79,7 +120,7 @@ async function start() {
         app.listen(config.proxyPort, () => {
             logger.info(`✓ Proxy server listening on http://localhost:${config.proxyPort}`);
             logger.info(`  Health check: http://localhost:${config.proxyPort}/health`);
-            logger.info(`  API proxy: http://localhost:${config.proxyPort}/api/*`);
+            logger.info(`  API proxy: http://localhost:${config.proxyPort}/v1/*`);
             logger.info('Ready to proxy requests!');
         });
 
