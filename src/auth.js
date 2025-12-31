@@ -165,12 +165,12 @@ class AuthManager {
                 // Wait for either Motor.com to load or an "Access through institution" button
                 try {
                     await page.waitForFunction(
-                        () => window.location.hostname.includes('motor.com'),
+                        () => window.location.href.includes('/m1/'),
                         { timeout: 60000 } // Increased timeout 
                     );
-                    logger.info('✓ Reached Motor.com');
+                    logger.info('✓ Reached Motor.com /m1/ endpoint');
                 } catch (err) {
-                    logger.warn(`Wait for Motor.com failed. Current URL: ${page.url()}`);
+                    logger.warn(`Wait for Motor.com /m1/ failed. Current URL: ${page.url()}`);
 
                     // May need to click "Access through institution" on EBSCO page
                     const institutionButton = await page.$('button:contains("Access through your institution"), a:contains("institution")');
@@ -178,7 +178,7 @@ class AuthManager {
                         logger.info('Clicking "Access through institution"...');
                         await institutionButton.click();
                         await page.waitForFunction(
-                            () => window.location.hostname.includes('motor.com'),
+                            () => window.location.href.includes('/m1/'),
                             { timeout: 30000 }
                         );
                     } else {
@@ -188,7 +188,7 @@ class AuthManager {
                             logger.info('Clicking "Continue" button...');
                             await continueButton.click();
                             await page.waitForFunction(
-                                () => window.location.hostname.includes('motor.com'),
+                                () => window.location.href.includes('/m1/'),
                                 { timeout: 30000 }
                             );
                         }
