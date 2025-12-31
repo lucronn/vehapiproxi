@@ -11,7 +11,7 @@ if (!getApps().length) {
 }
 
 const db = getFirestore();
-const SESSION_DOC_ID = 'motor_proxy_v1';
+const SESSION_DOC_ID = 'motor_proxy_v2'; // Bump version to invalidate old sessions
 
 class AuthManager {
     constructor() {
