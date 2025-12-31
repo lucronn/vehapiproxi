@@ -148,6 +148,13 @@ app.use('/v1', authMiddleware, createProxyMiddleware({
     // authMiddleware is now applied before this proxy middleware
     // onProxyReq removed as it's not needed for auth injection anymore
     onProxyRes: (proxyRes, req, res) => {
+        // Override upstream CORS headers to allow our frontend
+        const requestOrigin = req.headers['origin'];
+        if (requestOrigin) {
+            proxyRes.headers['access-control-allow-origin'] = requestOrigin;
+            proxyRes.headers['access-control-allow-credentials'] = 'true';
+        }
+
         // Cache static data for 24 hours
         if (req.path.includes('/years') || req.path.includes('/makes')) {
             proxyRes.headers['cache-control'] = 'public, max-age=86400';
@@ -197,6 +204,13 @@ app.use('/api', authMiddleware, createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
+        // Override upstream CORS headers to allow our frontend
+        const requestOrigin = req.headers['origin'];
+        if (requestOrigin) {
+            proxyRes.headers['access-control-allow-origin'] = requestOrigin;
+            proxyRes.headers['access-control-allow-credentials'] = 'true';
+        }
+
         // Cache static data for 24 hours
         if (req.path.includes('/years') || req.path.includes('/makes')) {
             proxyRes.headers['cache-control'] = 'public, max-age=86400';
