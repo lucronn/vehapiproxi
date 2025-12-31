@@ -148,12 +148,19 @@ app.use('/v1', authMiddleware, createProxyMiddleware({
     // authMiddleware is now applied before this proxy middleware
     // onProxyReq removed as it's not needed for auth injection anymore
     onProxyRes: (proxyRes, req, res) => {
-        // Override upstream CORS headers to allow our frontend
+        // STRICTLY override CORS to hide upstream source
         const requestOrigin = req.headers['origin'];
         if (requestOrigin) {
             proxyRes.headers['access-control-allow-origin'] = requestOrigin;
             proxyRes.headers['access-control-allow-credentials'] = 'true';
+        } else {
+            proxyRes.headers['access-control-allow-origin'] = '*';
         }
+
+        // STRIP upstream headers that might reveal the source or leak data
+        delete proxyRes.headers['set-cookie']; // Frontend doesn't need Motor cookies
+        delete proxyRes.headers['server'];     // Hide upstream server info
+        delete proxyRes.headers['x-powered-by'];
 
         // Cache static data for 24 hours
         if (req.path.includes('/years') || req.path.includes('/makes')) {
@@ -204,12 +211,19 @@ app.use('/api', authMiddleware, createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
-        // Override upstream CORS headers to allow our frontend
+        // STRICTLY override CORS to hide upstream source
         const requestOrigin = req.headers['origin'];
         if (requestOrigin) {
             proxyRes.headers['access-control-allow-origin'] = requestOrigin;
             proxyRes.headers['access-control-allow-credentials'] = 'true';
+        } else {
+            proxyRes.headers['access-control-allow-origin'] = '*';
         }
+
+        // STRIP upstream headers that might reveal the source or leak data
+        delete proxyRes.headers['set-cookie']; // Frontend doesn't need Motor cookies
+        delete proxyRes.headers['server'];     // Hide upstream server info
+        delete proxyRes.headers['x-powered-by'];
 
         // Cache static data for 24 hours
         if (req.path.includes('/years') || req.path.includes('/makes')) {
