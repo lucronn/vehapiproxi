@@ -307,9 +307,10 @@ async function initializeAuth() {
 initializeAuth().catch(err => logger.error('Auth initialization error:', err));
 
 // Export as Firebase Function with secrets
+// Temporarily removed secrets to clear conflicting env vars, will add back after deploy
 export const motorApiAuthProxy = onRequest({
     memory: '2GiB',
     timeoutSeconds: 300,
     region: 'us-central1', // Customize if needed
-    secrets: ['LIBRARY_BARCODE', 'EBSCO_USER', 'EBSCO_PASSWORD'], // Access secrets in the function
+    // secrets: ['LIBRARY_BARCODE', 'EBSCO_USER', 'EBSCO_PASSWORD'], // Temporarily removed
 }, app);
