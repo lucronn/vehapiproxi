@@ -3,6 +3,8 @@ dotenv.config();
 
 export const config = {
     // Authentication credentials
+    // In Firebase Functions, these come from secrets (injected as env vars)
+    // Locally, these come from .env file
     libraryBarcode: process.env.LIBRARY_BARCODE || '',
     ebscoUser: process.env.EBSCO_USER || '',
     ebscoPassword: process.env.EBSCO_PASSWORD || '',

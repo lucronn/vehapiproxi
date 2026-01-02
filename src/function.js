@@ -306,9 +306,10 @@ async function initializeAuth() {
 // Start authentication initialization (non-blocking)
 initializeAuth().catch(err => logger.error('Auth initialization error:', err));
 
-// Export as Firebase Function
+// Export as Firebase Function with secrets
 export const motorApiAuthProxy = onRequest({
     memory: '2GiB',
     timeoutSeconds: 300,
     region: 'us-central1', // Customize if needed
+    secrets: ['LIBRARY_BARCODE', 'EBSCO_USER', 'EBSCO_PASSWORD'], // Access secrets in the function
 }, app);
