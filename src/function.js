@@ -44,16 +44,28 @@ const authMiddleware = async (req, res, next) => {
     }
 
     try {
+        // Ensure authentication is initialized
+        if (!authInitialized) {
+            logger.info('Waiting for authentication initialization...');
+            await initializeAuth();
+        }
+
         // Ensure authentication before proxying
         if (!authManager.isSessionValid()) {
             logger.info('Session invalid, attempting to restore/authenticate...');
-            await authManager.loadSession();
-            if (!authManager.isSessionValid()) {
+            const loaded = await authManager.loadSession();
+            if (!loaded || !authManager.isSessionValid()) {
+                logger.info('No valid session, authenticating now...');
                 await authManager.authenticate();
+                logger.info('✓ Authentication successful');
             }
         }
 
         const cookieHeader = await authManager.getCookieHeader();
+        if (!cookieHeader || cookieHeader.length === 0) {
+            throw new Error('Failed to get cookie header - authentication may have failed');
+        }
+        
         req.headers['cookie'] = cookieHeader; // Attach to request headers
         req.headers['user-agent'] = config.userAgent; // Match the browser session UA
         req.headers['referer'] = 'https://sites.motor.com/m1/'; // Spoof referer
@@ -61,7 +73,14 @@ const authMiddleware = async (req, res, next) => {
         next();
     } catch (error) {
         logger.error('Authentication check failed:', error);
-        res.status(500).json({ error: 'Authentication failed' });
+        logger.error('Error details:', error.message, error.stack);
+        res.status(500).json({ 
+            error: 'Authentication failed',
+            message: error.message,
+            type: 'https://tools.ietf.org/html/rfc9110#section-15.5.2',
+            title: 'Internal Server Error',
+            status: 500
+        });
     }
 };
 
@@ -245,6 +264,47 @@ app.use('/api', authMiddleware, createProxyMiddleware({
     }
 }));
 
+
+// Initialize authentication on function startup (cold start)
+// This ensures authentication is ready before the first request
+let authInitialized = false;
+let authInitPromise = null;
+
+async function initializeAuth() {
+    if (authInitialized) return;
+    
+    // If initialization is already in progress, wait for it
+    if (authInitPromise) {
+        await authInitPromise;
+        return;
+    }
+    
+    authInitPromise = (async () => {
+        try {
+            logger.info('Initializing authentication on function startup...');
+            const loaded = await authManager.loadSession();
+            if (!loaded || !authManager.isSessionValid()) {
+                logger.info('No valid session found, authenticating now...');
+                await authManager.authenticate();
+                logger.info('✓ Authentication initialized successfully');
+            } else {
+                logger.info('✓ Valid session loaded from Firestore');
+            }
+            authInitialized = true;
+        } catch (error) {
+            logger.error('Failed to initialize authentication on startup:', error);
+            logger.error('Error details:', error.message, error.stack);
+            // Don't throw - let the middleware handle it on first request
+            // But mark as attempted so we don't retry immediately
+            authInitialized = true; // Mark as initialized to avoid infinite retries
+        }
+    })();
+    
+    await authInitPromise;
+}
+
+// Start authentication initialization (non-blocking)
+initializeAuth().catch(err => logger.error('Auth initialization error:', err));
 
 // Export as Firebase Function
 export const motorApiAuthProxy = onRequest({

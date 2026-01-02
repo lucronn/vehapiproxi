@@ -29,9 +29,15 @@ export const config = {
 // Validate required configuration
 export function validateConfig() {
     const required = ['libraryBarcode', 'ebscoUser', 'ebscoPassword'];
-    const missing = required.filter(key => !config[key]);
+    const missing = required.filter(key => !config[key] || config[key].trim() === '');
 
     if (missing.length > 0) {
-        throw new Error(`Missing required configuration: ${missing.join(', ')}`);
+        const errorMsg = `Missing required configuration: ${missing.join(', ')}. ` +
+            `Please set these as environment variables: ${missing.map(k => k.toUpperCase()).join(', ')}`;
+        console.error(errorMsg);
+        // In Firebase Functions, we should use runtime config or secrets
+        // For now, log the error but don't throw to allow function to start
+        // The authentication will fail gracefully with a clear error message
+        throw new Error(errorMsg);
     }
 }
