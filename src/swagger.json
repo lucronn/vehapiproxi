@@ -1312,6 +1312,130 @@
         }
       }
     },
+    "/auth/status": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get authentication status",
+        "description": "Returns the current authentication status and progress. Use this endpoint to poll for authentication progress when a 401 response indicates authentication is in progress.",
+        "operationId": "getAuthStatus",
+        "responses": {
+          "200": {
+            "description": "Authentication status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["idle", "authenticating", "success", "error"],
+                      "description": "Current authentication status"
+                    },
+                    "step": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Current authentication step (e.g., 'ebsco_login', 'redirecting', 'motor_connect')"
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Human-readable status message"
+                    },
+                    "progress": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100,
+                      "description": "Authentication progress percentage (0-100)"
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Error message if authentication failed"
+                    },
+                    "startedAt": {
+                      "type": "integer",
+                      "nullable": true,
+                      "format": "int64",
+                      "description": "Timestamp when authentication started (Unix timestamp in milliseconds)"
+                    },
+                    "completedAt": {
+                      "type": "integer",
+                      "nullable": true,
+                      "format": "int64",
+                      "description": "Timestamp when authentication completed (Unix timestamp in milliseconds)"
+                    },
+                    "sessionValid": {
+                      "type": "boolean",
+                      "description": "Whether the current session is valid"
+                    },
+                    "lastAuth": {
+                      "type": "integer",
+                      "nullable": true,
+                      "format": "int64",
+                      "description": "Timestamp of last successful authentication (Unix timestamp in milliseconds)"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "authenticating",
+                  "step": "motor_connect",
+                  "message": "Connecting to Motor.com...",
+                  "progress": 75,
+                  "error": null,
+                  "startedAt": 1704421234567,
+                  "completedAt": null,
+                  "sessionValid": false,
+                  "lastAuth": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/start": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Start authentication",
+        "description": "Manually trigger authentication. Authentication also starts automatically when a 401 response is received. Use this endpoint to pre-authenticate or retry failed authentication.",
+        "operationId": "startAuth",
+        "responses": {
+          "200": {
+            "description": "Authentication started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["started"],
+                      "description": "Status indicating authentication has started"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Instructions for polling authentication status"
+                    }
+                  },
+                  "required": ["status", "message"]
+                },
+                "example": {
+                  "status": "started",
+                  "message": "Authentication started. Poll /auth/status for progress."
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/api/logError": {
       "post": {
         "tags": [
@@ -1343,6 +1467,130 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/auth/status": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get authentication status",
+        "description": "Returns the current authentication status and progress. Use this endpoint to poll for authentication progress when a 401 response indicates authentication is in progress.",
+        "operationId": "getAuthStatus",
+        "responses": {
+          "200": {
+            "description": "Authentication status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["idle", "authenticating", "success", "error"],
+                      "description": "Current authentication status"
+                    },
+                    "step": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Current authentication step (e.g., 'ebsco_login', 'redirecting', 'motor_connect')"
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Human-readable status message"
+                    },
+                    "progress": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100,
+                      "description": "Authentication progress percentage (0-100)"
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Error message if authentication failed"
+                    },
+                    "startedAt": {
+                      "type": "integer",
+                      "nullable": true,
+                      "format": "int64",
+                      "description": "Timestamp when authentication started (Unix timestamp in milliseconds)"
+                    },
+                    "completedAt": {
+                      "type": "integer",
+                      "nullable": true,
+                      "format": "int64",
+                      "description": "Timestamp when authentication completed (Unix timestamp in milliseconds)"
+                    },
+                    "sessionValid": {
+                      "type": "boolean",
+                      "description": "Whether the current session is valid"
+                    },
+                    "lastAuth": {
+                      "type": "integer",
+                      "nullable": true,
+                      "format": "int64",
+                      "description": "Timestamp of last successful authentication (Unix timestamp in milliseconds)"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "authenticating",
+                  "step": "motor_connect",
+                  "message": "Connecting to Motor.com...",
+                  "progress": 75,
+                  "error": null,
+                  "startedAt": 1704421234567,
+                  "completedAt": null,
+                  "sessionValid": false,
+                  "lastAuth": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/start": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Start authentication",
+        "description": "Manually trigger authentication. Authentication also starts automatically when a 401 response is received. Use this endpoint to pre-authenticate or retry failed authentication.",
+        "operationId": "startAuth",
+        "responses": {
+          "200": {
+            "description": "Authentication started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["started"],
+                      "description": "Status indicating authentication has started"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Instructions for polling authentication status"
+                    }
+                  },
+                  "required": ["status", "message"]
+                },
+                "example": {
+                  "status": "started",
+                  "message": "Authentication started. Poll /auth/status for progress."
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }

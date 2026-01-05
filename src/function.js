@@ -1,7 +1,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import express from 'express';
 import cors from 'cors';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,7 +26,6 @@ app.use(cors({
 }));
 
 // Health check endpoint
-
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.get('/health', (req, res) => {
     res.json({
@@ -34,6 +33,39 @@ app.get('/health', (req, res) => {
         sessionValid: authManager.isSessionValid(),
         lastAuth: authManager.lastAuthTime
     });
+});
+
+// Authentication status endpoint for progress polling
+app.get('/auth/status', (req, res) => {
+    const progress = authManager.getProgress();
+    res.json({
+        ...progress,
+        sessionValid: authManager.isSessionValid(),
+        lastAuth: authManager.lastAuthTime
+    });
+});
+
+// Trigger authentication endpoint (optional - for manual triggering)
+app.post('/auth/start', async (req, res) => {
+    try {
+        // Reset progress and start authentication
+        authManager.resetProgress();
+        
+        // Start authentication in background (don't wait)
+        authManager.authenticate().catch(err => {
+            logger.error('Background authentication failed:', err);
+        });
+        
+        res.json({
+            status: 'started',
+            message: 'Authentication started. Poll /auth/status for progress.'
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            error: error.message
+        });
+    }
 });
 
 // Async Authentication Middleware
@@ -56,6 +88,8 @@ const authMiddleware = async (req, res, next) => {
             const loaded = await authManager.loadSession();
             if (!loaded || !authManager.isSessionValid()) {
                 logger.info('No valid session, authenticating now...');
+                // Reset progress before starting authentication
+                authManager.resetProgress();
                 await authManager.authenticate();
                 logger.info('✓ Authentication successful');
             }
@@ -187,10 +221,22 @@ app.use('/v1', authMiddleware, createProxyMiddleware({
         }
 
         if (proxyRes.statusCode === 401 || proxyRes.statusCode === 403) {
-            logger.warn(`Received ${proxyRes.statusCode} from upstream. Session might be expired.`);
-            // In a more advanced implementation, we would trigger re-auth here
-            // For now, we rely on the client to retry or the next request to trigger auth
-            authManager.lastAuthTime = 0; // Invalidate session so next request re-auths
+            logger.warn(`Received ${proxyRes.statusCode} from upstream. Session expired. Invalidating session and starting authentication...`);
+            
+            // Invalidate session and start authentication
+            authManager.lastAuthTime = 0;
+            authManager.cookies = [];
+            authManager.resetProgress();
+            
+            // Start authentication in background
+            authManager.authenticate().catch(err => {
+                logger.error('Background authentication failed:', err);
+            });
+            
+            // Add header to tell client to poll auth status
+            proxyRes.headers['x-auth-status'] = 'authenticating';
+            proxyRes.headers['x-auth-status-url'] = '/auth/status';
+            proxyRes.headers['x-retry-after'] = '2'; // Suggest polling every 2 seconds
         }
     },
     onError: (err, req, res) => {
@@ -206,6 +252,7 @@ app.use('/v1', authMiddleware, createProxyMiddleware({
 app.use('/api', authMiddleware, createProxyMiddleware({
     target: config.motorApiBase, // https://sites.motor.com/m1
     changeOrigin: true,
+    selfHandleResponse: true, // Allow us to intercept and modify responses
     // No path rewrite needed - /api -> /api on connector
     onProxyReq: (proxyReq, req, res) => {
         try {
@@ -229,32 +276,65 @@ app.use('/api', authMiddleware, createProxyMiddleware({
             logger.error('Error setting proxy request headers for /api:', error);
         }
     },
-    onProxyRes: (proxyRes, req, res) => {
-        // STRICTLY override CORS to hide upstream source
-        const requestOrigin = req.headers['origin'];
-        if (requestOrigin) {
-            proxyRes.headers['access-control-allow-origin'] = requestOrigin;
-            proxyRes.headers['access-control-allow-credentials'] = 'true';
-        } else {
-            proxyRes.headers['access-control-allow-origin'] = '*';
-        }
+    on: {
+        proxyRes: responseInterceptor(async (responseBuffer, proxyRes, req, res) => {
+            // STRICTLY override CORS to hide upstream source
+            const requestOrigin = req.headers['origin'];
+            if (requestOrigin) {
+                res.setHeader('access-control-allow-origin', requestOrigin);
+                res.setHeader('access-control-allow-credentials', 'true');
+            } else {
+                res.setHeader('access-control-allow-origin', '*');
+            }
 
-        // STRIP upstream headers that might reveal the source or leak data
-        delete proxyRes.headers['set-cookie']; // Frontend doesn't need Motor cookies
-        delete proxyRes.headers['server'];     // Hide upstream server info
-        delete proxyRes.headers['x-powered-by'];
+            // STRIP upstream headers that might reveal the source or leak data
+            res.removeHeader('set-cookie'); // Frontend doesn't need Motor cookies
+            res.removeHeader('server');     // Hide upstream server info
+            res.removeHeader('x-powered-by');
 
-        // Cache static data for 24 hours
-        if (req.path.includes('/years') || req.path.includes('/makes')) {
-            proxyRes.headers['cache-control'] = 'public, max-age=86400';
-        }
+            // Cache static data for 24 hours
+            if (req.path.includes('/years') || req.path.includes('/makes')) {
+                res.setHeader('cache-control', 'public, max-age=86400');
+            }
 
-        if (proxyRes.statusCode === 401 || proxyRes.statusCode === 403) {
-            logger.warn(`Received ${proxyRes.statusCode} from Motor.com. Session might be expired.`);
-            authManager.lastAuthTime = 0; // Invalidate session so next request re-auths
-        }
+            // Handle 401/403 by sending custom response that triggers client polling
+            if (proxyRes.statusCode === 401 || proxyRes.statusCode === 403) {
+                logger.warn(`Received ${proxyRes.statusCode} from Motor.com. Session expired. Invalidating session and starting authentication...`);
+                
+                // Invalidate session and start authentication
+                authManager.lastAuthTime = 0;
+                authManager.cookies = [];
+                authManager.resetProgress();
+                
+                // Start authentication in background
+                authManager.authenticate().catch(err => {
+                    logger.error('Background authentication failed:', err);
+                });
+                
+                // Send custom response telling client to poll auth status
+                const responseBody = JSON.stringify({
+                    error: 'Authentication required',
+                    message: 'Session expired. Authentication in progress.',
+                    status: 401,
+                    authStatus: 'authenticating',
+                    authStatusUrl: '/auth/status',
+                    retryAfter: 2,
+                    pollInterval: 500 // milliseconds
+                });
+                
+                res.statusCode = 401;
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('x-auth-status', 'authenticating');
+                res.setHeader('x-auth-status-url', '/auth/status');
+                res.setHeader('x-retry-after', '2');
+                
+                logger.info(`← 401 ${req.path} (custom response - auth in progress)`);
+                return responseBody;
+            }
 
-        logger.info(`← ${proxyRes.statusCode} ${req.path}`);
+            logger.info(`← ${proxyRes.statusCode} ${req.path}`);
+            return responseBuffer;
+        })
     },
     onError: (err, req, res) => {
         logger.error('Proxy error for /api route:', err);
@@ -265,8 +345,8 @@ app.use('/api', authMiddleware, createProxyMiddleware({
 }));
 
 
-// Initialize authentication on function startup (cold start)
-// This ensures authentication is ready before the first request
+// Lazy authentication initialization - only happens on first request
+// This eliminates cold start spinup time for serverless functions
 let authInitialized = false;
 let authInitPromise = null;
 
@@ -281,7 +361,7 @@ async function initializeAuth() {
     
     authInitPromise = (async () => {
         try {
-            logger.info('Initializing authentication on function startup...');
+            logger.info('Lazy authentication initialization (first request)...');
             const loaded = await authManager.loadSession();
             if (!loaded || !authManager.isSessionValid()) {
                 logger.info('No valid session found, authenticating now...');
@@ -292,24 +372,26 @@ async function initializeAuth() {
             }
             authInitialized = true;
         } catch (error) {
-            logger.error('Failed to initialize authentication on startup:', error);
+            logger.error('Failed to initialize authentication:', error);
             logger.error('Error details:', error.message, error.stack);
             // Don't throw - let the middleware handle it on first request
             // But mark as attempted so we don't retry immediately
             authInitialized = true; // Mark as initialized to avoid infinite retries
+            throw error; // Re-throw so middleware can handle it
         }
     })();
     
     await authInitPromise;
 }
 
-// Start authentication initialization (non-blocking)
-initializeAuth().catch(err => logger.error('Auth initialization error:', err));
+// Note: No startup authentication - happens lazily on first request via authMiddleware
+// This eliminates cold start spinup time for serverless functions
 
-// Export as Firebase Function with secrets
+// Export as Firebase Function
+// Note: Authentication credentials are hardcoded in auth.js for simplified flow
 export const motorApiAuthProxy = onRequest({
     memory: '2GiB',
     timeoutSeconds: 300,
     region: 'us-central1', // Customize if needed
-    secrets: ['LIBRARY_BARCODE', 'EBSCO_USER', 'EBSCO_PASSWORD'], // Access secrets in the function
+    // Secrets removed - credentials are hardcoded in auth.js for simplified authentication
 }, app);

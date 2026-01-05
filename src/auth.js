@@ -1,7 +1,7 @@
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import https from 'https';
+import { URL } from 'url';
 import { config } from './config.js';
 import logger from './logger.js';
 
@@ -11,13 +11,122 @@ if (!getApps().length) {
 }
 
 const db = getFirestore();
-const SESSION_DOC_ID = 'motor_proxy_v2'; // Bump version to invalidate old sessions
+const SESSION_DOC_ID = 'motor_proxy_v3'; // Bump version to invalidate old sessions
+
+// Simple cookie jar to track cookies across redirects
+class CookieJar {
+    constructor() {
+        this.cookies = new Map();
+    }
+
+    setCookie(setCookieHeader, domain) {
+        if (!setCookieHeader) return;
+        
+        // Parse Set-Cookie header: "name=value; path=/; domain=.example.com"
+        const parts = setCookieHeader.split(';');
+        const [nameValue] = parts;
+        const [name, value] = nameValue.trim().split('=');
+        if (name && value) {
+            this.cookies.set(name, { value, domain });
+        }
+    }
+
+    getCookieHeader(hostname) {
+        const relevant = Array.from(this.cookies.entries())
+            .filter(([_, cookie]) => {
+                // Match domain (including subdomains)
+                return hostname.includes(cookie.domain.replace(/^\./, '')) || 
+                       cookie.domain.includes(hostname);
+            })
+            .map(([name, cookie]) => `${name}=${cookie.value}`);
+        return relevant.join('; ');
+    }
+
+    getAllCookies() {
+        return Array.from(this.cookies.entries()).map(([name, cookie]) => ({
+            name,
+            value: cookie.value,
+            domain: cookie.domain
+        }));
+    }
+}
+
+// Helper to make HTTP request and handle redirects with cookie tracking
+function httpsRequest(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const requestOptions = {
+            hostname: urlObj.hostname,
+            path: urlObj.pathname + urlObj.search,
+            method: options.method || 'GET',
+            headers: {
+                'User-Agent': config.userAgent,
+                ...options.headers
+            }
+        };
+
+        const req = https.request(requestOptions, (res) => {
+            const cookies = [];
+            const setCookieHeaders = res.headers['set-cookie'] || [];
+            
+            setCookieHeaders.forEach(header => {
+                cookies.push(header);
+            });
+
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                resolve({
+                    statusCode: res.statusCode,
+                    headers: res.headers,
+                    cookies,
+                    data,
+                    url: url
+                });
+            });
+        });
+
+        req.on('error', reject);
+        req.end();
+    });
+}
 
 class AuthManager {
     constructor() {
         this.cookies = [];
         this.lastAuthTime = null;
         this.authPromise = null;
+        // Progress tracking for UI polling
+        this.authProgress = {
+            status: 'idle', // 'idle' | 'authenticating' | 'success' | 'error'
+            step: null,
+            message: null,
+            progress: 0, // 0-100
+            error: null,
+            startedAt: null,
+            completedAt: null
+        };
+    }
+
+    /**
+     * Get current authentication progress
+     */
+    getProgress() {
+        return { ...this.authProgress };
+    }
+
+    /**
+     * Update progress state
+     */
+    _updateProgress(status, step, message, progress = null) {
+        this.authProgress = {
+            ...this.authProgress,
+            status,
+            step,
+            message,
+            progress: progress !== null ? progress : this.authProgress.progress,
+            startedAt: this.authProgress.startedAt || Date.now()
+        };
     }
 
     /**
@@ -80,7 +189,29 @@ class AuthManager {
     }
 
     /**
-     * Perform authentication flow using Puppeteer
+     * Delete session from Firestore (called when session is invalid)
+     */
+    async deleteSession() {
+        try {
+            await db.collection('sessions').doc(SESSION_DOC_ID).delete();
+            logger.info('✓ Session deleted from Firestore');
+        } catch (e) {
+            logger.error('Could not delete session from Firestore', e);
+        }
+    }
+
+    /**
+     * Invalidate session (clears in-memory and deletes from Firestore)
+     */
+    async invalidateSession() {
+        this.lastAuthTime = 0;
+        this.cookies = [];
+        await this.deleteSession();
+        logger.info('✓ Session invalidated and deleted');
+    }
+
+    /**
+     * Simplified authentication flow using direct GET request
      */
     async authenticate() {
         // If authentication is already in progress, return the existing promise
@@ -90,133 +221,117 @@ class AuthManager {
                 await this.authPromise;
                 return;
             } catch (err) {
-                // If the pending auth failed, we might want to retry, but for now let's just propagate
                 throw err;
             }
         }
 
+        // Reset progress state for new authentication
+        this.resetProgress();
+
         // Create a new auth promise
         this.authPromise = (async () => {
-            logger.info('Starting authentication flow...');
-
-            const browser = await puppeteer.launch({
-                args: [
-                    ...chromium.args,
-                    `--user-agent=${config.userAgent}`
-                ],
-                defaultViewport: chromium.defaultViewport,
-                executablePath: await chromium.executablePath(),
-                headless: chromium.headless,
-                ignoreHTTPSErrors: true,
-            });
+            logger.info('Starting simplified authentication flow...');
+            this._updateProgress('authenticating', 'init', 'Starting authentication...', 0);
 
             try {
-                let page = await browser.newPage();
+                const ebscoLoginUrl = 'https://search.ebscohost.com/login.aspx?authtype=uid&user=pl7321r&password=PL%3F7321R&profile=autorepso&groupid=remote';
+                const cookieJar = new CookieJar();
+                let currentUrl = ebscoLoginUrl;
+                let redirectCount = 0;
+                const maxRedirects = 10;
 
-                // Step 1: Navigate to library portal
-                logger.info('Step 1: Navigating to library portal...');
-                try {
-                    await page.goto(config.urls.libraryPortal);
-                } catch (err) {
-                    logger.warn('Navigation error (ignoring if frame detached):', err.message);
-                }
+                logger.info(`Step 1: Making GET request to EBSCO login URL...`);
+                this._updateProgress('authenticating', 'ebsco_login', 'Connecting to EBSCO...', 10);
+                
+                // Follow redirects manually to capture cookies
+                while (redirectCount < maxRedirects) {
+                    const urlObj = new URL(currentUrl);
+                    const cookieHeader = cookieJar.getCookieHeader(urlObj.hostname);
+                    
+                    const response = await httpsRequest(currentUrl, {
+                        headers: cookieHeader ? { 'Cookie': cookieHeader } : {}
+                    });
 
-                // Wait for page to stabilize/redirect
-                await new Promise(r => setTimeout(r, 3000));
-                logger.info(`Current URL: ${page.url()}`);
+                    // Store cookies from this response
+                    response.cookies.forEach(cookie => {
+                        cookieJar.setCookie(cookie, urlObj.hostname);
+                    });
 
-                // Step 2: Submit barcode
-                logger.info('Step 2: Submitting library barcode...');
-                const inputExists = await page.waitForSelector('input[name="barcode"]', { timeout: 10000 });
-                if (inputExists) {
-                    logger.info('Input found, setting value directly...');
-                    await page.evaluate((val) => {
-                        const el = document.querySelector('input[name="barcode"]');
-                        if (el) el.value = val;
-                    }, config.libraryBarcode);
+                    logger.info(`Response status: ${response.statusCode}, URL: ${currentUrl}`);
+                    logger.info(`Cookies received: ${response.cookies.length}`);
 
-                    logger.info('Clicking submit...');
+                    // Update progress based on redirect count
+                    const progressPercent = Math.min(10 + (redirectCount * 15), 70);
+                    this._updateProgress('authenticating', 'redirecting', `Following redirect ${redirectCount + 1}...`, progressPercent);
 
-                    // Capture browser logs
-                    page.on('console', msg => logger.info(`[BROWSER] ${msg.text()}`));
-
-                    await Promise.all([
-                        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(e => logger.warn('Nav wait error:', e.message)),
-                        page.click('button[type="submit"], input[type="submit"]')
-                    ]);
-                } else {
-                    throw new Error('Barcode input not found');
-                }
-
-                // Step 3: Wait for EBSCO login (may auto-redirect through OAuth)
-                logger.info('Step 3: Handling EBSCO authentication details...');
-                // Allow redirects/popups to process - increased wait for stability
-                await new Promise(r => setTimeout(r, 5000));
-
-                // Check for new tabs/popups
-                const pages = await browser.pages();
-                logger.info(`Open pages after navigation: ${pages.length}`);
-                page = pages[pages.length - 1]; // Switch to the most recent page
-                logger.info(`Current URL (active page): ${page.url()}`);
-
-                // Step 4: Wait for Motor.com or check if we need to click through
-                logger.info('Step 4: Waiting for Motor.com...');
-
-                // Wait for either Motor.com to load or an "Access through institution" button
-                try {
-                    await page.waitForFunction(
-                        () => window.location.href.includes('/m1/'),
-                        { timeout: 60000 } // Increased timeout 
-                    );
-                    logger.info('✓ Reached Motor.com /m1/ endpoint');
-                } catch (err) {
-                    logger.warn(`Wait for Motor.com /m1/ failed. Current URL: ${page.url()}`);
-
-                    // May need to click "Access through institution" on EBSCO page
-                    const institutionButton = await page.$('button:contains("Access through your institution"), a:contains("institution")');
-                    if (institutionButton) {
-                        logger.info('Clicking "Access through institution"...');
-                        await institutionButton.click();
-                        await page.waitForFunction(
-                            () => window.location.href.includes('/m1/'),
-                            { timeout: 30000 }
-                        );
-                    } else {
-                        // Check for "continue" button often found on redirection intermediaries
-                        const continueButton = await page.$('button:contains("Continue"), a:contains("Continue")');
-                        if (continueButton) {
-                            logger.info('Clicking "Continue" button...');
-                            await continueButton.click();
-                            await page.waitForFunction(
-                                () => window.location.href.includes('/m1/'),
-                                { timeout: 30000 }
-                            );
+                    // Handle redirect
+                    if (response.statusCode >= 300 && response.statusCode < 400) {
+                        const location = response.headers.location;
+                        if (location) {
+                            currentUrl = new URL(location, currentUrl).href;
+                            redirectCount++;
+                            logger.info(`Redirect ${redirectCount} to: ${currentUrl}`);
+                            continue;
                         }
                     }
+
+                    // Check if we've reached motor.com
+                    if (currentUrl.includes('motor.com')) {
+                        logger.info(`✓ Reached motor.com at: ${currentUrl}`);
+                        this._updateProgress('authenticating', 'motor_connect', 'Connecting to Motor.com...', 75);
+                        
+                        // Make a final request to motor.com/m1 to ensure we have the right cookies
+                        const motorUrl = 'https://sites.motor.com/m1';
+                        const cookieHeaderForMotor = cookieJar.getCookieHeader('sites.motor.com');
+                        
+                        logger.info('Step 2: Making final request to motor.com/m1...');
+                        this._updateProgress('authenticating', 'motor_auth', 'Authenticating with Motor.com...', 85);
+                        const finalResponse = await httpsRequest(motorUrl, {
+                            headers: cookieHeaderForMotor ? { 'Cookie': cookieHeaderForMotor } : {}
+                        });
+
+                        // Store any additional cookies from motor.com
+                        finalResponse.cookies.forEach(cookie => {
+                            cookieJar.setCookie(cookie, 'sites.motor.com');
+                        });
+
+                        logger.info(`Final response status: ${finalResponse.statusCode}`);
+                        break;
+                    }
+
+                    // If we get here and no redirect, we're done
+                    break;
                 }
 
-                // Step 5: Extract cookies from Motor.com
-                logger.info('Step 5: Extracting session cookies...');
-
-                const allCookies = await page.cookies();
-                this.cookies = allCookies.filter(cookie =>
+                // Extract all motor.com cookies
+                this.cookies = cookieJar.getAllCookies().filter(cookie => 
                     cookie.domain.includes('motor.com')
                 );
+
+                // If we didn't get motor.com cookies, use all cookies we collected
+                if (this.cookies.length === 0) {
+                    const allCookies = cookieJar.getAllCookies();
+                    logger.warn(`No motor.com cookies found, using all cookies: ${allCookies.length}`);
+                    this.cookies = allCookies;
+                }
 
                 this.lastAuthTime = Date.now();
 
                 logger.info(`✓ Authentication successful! Got ${this.cookies.length} cookies`);
                 logger.info(`Cookies: ${this.cookies.map(c => c.name).join(', ')}`);
 
+                this._updateProgress('authenticating', 'saving', 'Saving session...', 95);
                 await this.saveSession();
 
-
+                this._updateProgress('success', 'complete', 'Authentication successful!', 100);
+                this.authProgress.completedAt = Date.now();
 
             } catch (error) {
                 logger.error('Authentication failed:', error);
+                this._updateProgress('error', 'failed', `Authentication failed: ${error.message}`, 0);
+                this.authProgress.error = error.message;
+                this.authProgress.completedAt = Date.now();
                 throw error;
-            } finally {
-                await browser.close();
             }
         })();
 
@@ -235,6 +350,21 @@ class AuthManager {
             await this.authenticate();
         }
         return this.cookies;
+    }
+
+    /**
+     * Reset progress state (call before starting new authentication)
+     */
+    resetProgress() {
+        this.authProgress = {
+            status: 'idle',
+            step: null,
+            message: null,
+            progress: 0,
+            error: null,
+            startedAt: null,
+            completedAt: null
+        };
     }
 
     /**
